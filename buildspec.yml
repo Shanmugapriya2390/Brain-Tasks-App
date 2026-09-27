@@ -1,0 +1,41 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_ACCOUNT_ID: "805131910576"
+    AWS_DEFAULT_REGION: "ap-south-1"
+    REPOSITORY_URI: "805131910576.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app"
+    EKS_CLUSTER_NAME: "brain-tasks-cluster"
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - echo Installing kubectl...
+      - curl -LO https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl
+      - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - kubectl version --client
+      - echo Preparing image tag...
+      - echo $CODEBUILD_RESOLVED_SOURCE_VERSION
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building Docker image...
+      - docker build -t $REPOSITORY_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION .
+      - docker tag $REPOSITORY_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION $REPOSITORY_URI:latest
+
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing Docker image to ECR...
+      - docker push $REPOSITORY_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - docker push $REPOSITORY_URI:latest
+      - echo Updating kubeconfig...
+      - aws eks update-kubeconfig --region $AWS_DEFAULT_REGION --name $EKS_CLUSTER_NAME
+      - echo Updating Kubernetes deployment...
+      - kubectl set image deployment/brain-tasks-app brain-tasks-app=$REPOSITORY_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - echo Waiting for rollout...
+      - kubectl rollout status deployment/brain-tasks-app
+      - echo Deployment completed successfully!
