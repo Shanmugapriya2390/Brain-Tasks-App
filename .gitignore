@@ -1,0 +1,8 @@
+current-pipeline.json
+pipeline.json
+pipeline-backup.json
+pipeline-update.json
+passrole-policy.json
+cloudwatch-pod-trust-policy.json
+connection-policy.json
+eks-logging.json
